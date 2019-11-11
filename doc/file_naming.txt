@@ -1,0 +1,17 @@
+
+# Example: 	ZEP_IR_T_20160628T173000_whatever-Information-To-Add.txt
+
+# with:		Platform_instrument_parameter_YearMonthDayTHourMinutesSeconds_AdditionalInformation.END
+# (Zeppelin)_(InfraredCamera)_(Temperature)_ (YYYYMMDDTHHMMSS)…
+
+# The date and time information corresponds to the first data point of the file.
+
+# Platform Names:
+# MET	Meteor
+# STE	Plane Stemme Mupp
+# GLA	Glider Amadeus
+# GLC	Glider Comet
+# GLS	Glider Sebastian
+# GLD	Glider Dipsy
+# DRI	Drifter (D01-D16)
+
