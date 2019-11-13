@@ -332,6 +332,7 @@ class FileForwarderClient(object):
         For now, files are written to the data directory, and processed when both pairs are 
         written.
         '''
+        logger.info("Writing file {}".format(filename))
         path = os.path.join(self.datadir, filename)
         with open(path, 'wb') as fp:
             fp.write(contents)
@@ -385,6 +386,7 @@ class FileForwarderClient(object):
     
     async def make_request(self, i, request, *p):
         ''' Coroutine to make a general request to the server '''
+        logger.info("Making request ({}) to server {}".format(i))
         mesg = [ request.encode('utf-8') ]
         mesg += [_p.encode('utf-8') for _p in p]
         await self.zmq['REQ'][i].send_multipart(mesg)
@@ -475,6 +477,7 @@ class FileForwarderClient(object):
                     if files_received != files_sent:
                         # we have a back log of files. Start a new tasks if for this server is non running already.
                         if not i in backlog_tasks:
+                            logger.info("Starting backlog clearance process...")
                             backlog_tasks[i] = asyncio.create_task(self.clear_backlog(i))
             # remove any finished backlog_tasks...
             removables=[]
@@ -483,7 +486,7 @@ class FileForwarderClient(object):
                     removables.append(i)
             for i in removables:
                 backlog_tasks.pop(i)
-
+                logger.info("Finished backlog clearance process.")
     def run(self, loop = None):
         loop = loop or asyncio.get_event_loop()
         loop.run_until_complete(self.initialise())
