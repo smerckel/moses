@@ -12,7 +12,7 @@ logger=loggers.get_logger(__name__)
 
 
 
-Connection = namedtuple('Connection', 'server sub req'.split())
+Connection = namedtuple('Connection', 'server ports'.split())
 
 class FileTransportServer(object):
     ''' File transport server
@@ -242,6 +242,7 @@ class FileForwarderClient(object):
     If the client figures out there are files missing, it will use a req-rep connection to obtain those 
     directly from the server.
     '''
+    SOCKET_TIMEOUT = 1000 # 5000 ms
     
     def __init__(self, datadir='.', processor_coro = None, force_reread_all=False):
         ''' Constructor
@@ -287,12 +288,13 @@ class FileForwarderClient(object):
             port number of the request-response channel of the server
         '''
         req_port = req_port or sub_port+1
-        connection = Connection(server=server, sub=sub_port, req=req_port)
+        ports = dict(SUB=sub_port, REQ=req_port)
+        connection = Connection(server=server, ports=ports)
         self.connections.append(connection)
         
     def setup_connections(self):
         ''' Set up all connections for FILE and INFO (pubsub) and REQ (req-rep)'''
-        for s, psub, preq in self.connections:
+        for s, ports in self.connections:
             s_file = self.context.socket(zmq.SUB)
             s_file.setsockopt(zmq.SUBSCRIBE, b"FILE")
             s_info = self.context.socket(zmq.SUB)
@@ -303,18 +305,60 @@ class FileForwarderClient(object):
             self.zmq['REQ'].append(s_req)
             self.receptions.append([]) # list of received files.
 
-    def connect(self):
-        ''' Make all connections'''
-        for i, (s, psub, preq) in enumerate(self.connections):
-            self.zmq['FILE'][i].connect("tcp://%s:%d"%(s, psub))
-            self.zmq['INFO'][i].connect("tcp://%s:%d"%(s, psub))
-            self.zmq['REQ'][i].connect("tcp://%s:%d"%(s, preq))
+    def connect_all(self):
+        self.zmq['FILE']=[]
+        self.zmq['INFO']=[]
+        self.zmq['REQ']=[]
 
-    def close(self):
+        for i, connection in enumerate(self.connections):
+            self.connect_socket('FILE', 'SUB', i)
+            self.connect_socket('INFO', 'SUB', i)
+            self.connect_socket('REQ', 'REQ', i)
+            self.receptions.append([]) # list of received files.
+
+    def close_all(self):
         ''' Close all connections '''
-        for k, v in self.zmq.items():
-            for s in v:
-                s.close()
+        for i, connection in enumerate(self.connections):
+            self.close_socket('FILE',i)
+            self.close_socket('INFO',i)
+            self.close_socket('REQ',i)
+            
+    def connect_socket(self, name, protocol, i):
+        server, ports = self.connections[i]
+        if protocol == 'SUB':
+            s = self.context.socket(zmq.SUB)
+            s.setsockopt(zmq.SUBSCRIBE, name.encode('utf-8'))
+        elif protocol == 'REQ':
+            s = self.context.socket(zmq.REQ)
+        else:
+            raise ValueErrror('Wrong protocol')
+        s.connect("tcp://%s:%d"%(server, ports[protocol]))
+        try:
+            self.zmq[name][i] = s
+        except IndexError:
+            self.zmq[name].append(s)
+        logger.info('Connected socket #{} for {} ({}).'.format(i, name, protocol))
+        
+    def close_socket(self, name, i):
+        s = self.zmq[name][i]
+        s.setsockopt(zmq.LINGER,0) # Set time to linger to zero,
+                                   # required for sockets not to hang,
+                                   # waiting for something, before
+                                   # closing. See "Making a Clean exit" section in the zmq guide.
+        s.close()
+        logger.info('Closed socket #{} for {}.'.format(i, name))
+        
+    def reconnect_req_socket(self, i):
+        ''' Reconnect a REQ-REP socket
+
+        Parameters
+        ----------
+        i : int
+            index number of connection ID.
+        
+        '''
+        self.close_socket('REQ', i)
+        self.connect_socket('REQ', 'REQ', i)
 
     def write_file(self, filename, contents):
         ''' Write a file
@@ -332,6 +376,7 @@ class FileForwarderClient(object):
         For now, files are written to the data directory, and processed when both pairs are 
         written.
         '''
+        logger.info("Writing file {}".format(filename))
         path = os.path.join(self.datadir, filename)
         with open(path, 'wb') as fp:
             fp.write(contents)
@@ -385,10 +430,17 @@ class FileForwarderClient(object):
     
     async def make_request(self, i, request, *p):
         ''' Coroutine to make a general request to the server '''
+        logger.info("Making request ({}) to server {}".format(request, i))
         mesg = [ request.encode('utf-8') ]
         mesg += [_p.encode('utf-8') for _p in p]
         await self.zmq['REQ'][i].send_multipart(mesg)
-        response = await self.zmq['REQ'][i].recv_multipart()
+        # allow the connection to time out...
+        n = await self.zmq['REQ'][i].poll(timeout=FileForwarderClient.SOCKET_TIMEOUT)
+        if n:
+            response = await self.zmq['REQ'][i].recv_multipart()
+        else:
+            logger.info("Timed out while waiting for response to request {} from server {}.".format(request,i))
+            response = None
         return response
     
     async def initialise(self):
@@ -405,16 +457,33 @@ class FileForwarderClient(object):
         n = len(self.connections)
         logger.info("Polling:")
         for c in self.connections:
-            logger.info("\t{}:{}/{}".format(c.server, c.sub, c.req))
-        tasks = [asyncio.create_task(self.make_request(i,'LIST')) for i in range(n)]
-        results = await asyncio.gather( *tasks )
-        if not self.force_reread_all:
-            # assume that what the server has sent, we already have
-            # and fill self.receptions accordingly.
-            for i, r in enumerate(results):
-                r.pop(0) # remove the "command"
-                self.receptions[i] = [_r.decode('utf-8').lower() for _r in r]
+            logger.info("\t{}:{}/{}".format(c.server, c.ports['SUB'], c.ports['REQ']))
+        status = dict((k,0) for k in range(n))
+        
+        while True:
+            if all(status.values()):
+                break # all reached. Continue.
+            task_map = []
+            tasks = []
+            for k, s in status.items():
+                if not s: # not reached yet
+                    tasks.append(asyncio.create_task(self.make_request(k,'LIST')))
+                    task_map.append(k)
+            # wait for the result to come in
+            results = await asyncio.gather( *tasks )
+            for i, r in zip(task_map, results):
+                if r is None: # connection timed out. Skip
+                    # reconnect this socket
+                    self.reconnect_req_socket(i)
+                    continue
+                status[i] = 1 #valid respsone.
+                if not self.force_reread_all:
+                    # assume that what the server has sent, we already have
+                    # and fill self.receptions accordingly.
+                    r.pop(0) # remove the "command"
+                    self.receptions[i] = [_r.decode('utf-8').lower() for _r in r]
         logger.info("Initialised.")
+        
 
     async def clear_backlog(self, i):
         ''' Clear backlog
@@ -425,16 +494,26 @@ class FileForwarderClient(object):
         ----------
         i : int
             index number of server.
+
         '''
+        
         response = await self.make_request(i,'LIST')
+        if response is None:
+            logger.info('Make request LIST timed out for connection #{}'.format(i))
+            self.reconnect_req_socket(i)
+            return
         available_files = set([_r.decode('utf-8').lower() for _r in response[1:]])
         received_files = set(self.receptions[i])
         for f in available_files.difference(received_files):
             response = await self.make_request(i, 'FILE', f)
+            if response is None:
+                logger.info('Make request FILE timed out for connection #{}'.format(i))
+                self.reconnect_req_socket(i)
+                continue
             self.receptions[i].append(f) # successfully read file f
             content = response[1]
             self.write_file(f, content)
-            
+
     async def main(self):
         '''Coroutine main
 
@@ -475,6 +554,7 @@ class FileForwarderClient(object):
                     if files_received != files_sent:
                         # we have a back log of files. Start a new tasks if for this server is non running already.
                         if not i in backlog_tasks:
+                            logger.info("Starting backlog clearance process...")
                             backlog_tasks[i] = asyncio.create_task(self.clear_backlog(i))
             # remove any finished backlog_tasks...
             removables=[]
@@ -483,7 +563,7 @@ class FileForwarderClient(object):
                     removables.append(i)
             for i in removables:
                 backlog_tasks.pop(i)
-
+                logger.info("Finished backlog clearance process.")
     def run(self, loop = None):
         loop = loop or asyncio.get_event_loop()
         loop.run_until_complete(self.initialise())

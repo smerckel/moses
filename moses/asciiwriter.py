@@ -333,12 +333,13 @@ class MosesDBDWriter(object):
                     pass
                 except ValueError as e:
                     if e.args[0] == 'array of sample points is empty':
-                        #pass # this happens when a file is too short. Then skip it
-                        logger.warning("File (%s) too short, and not processed."%(self.data['filename']))
+                        pass # this happens when a file is too short. Then skip it
                     else:
                         raise e
                 else:
                     n+=1
+        if n==0:
+            logger.warning("File (%s) too short, and not processed."%(self.data['filename']))
         return n
 
     def process(self, filename):

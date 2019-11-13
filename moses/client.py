@@ -9,9 +9,8 @@ processor = asciiwriter.processor(writer, extensions=('sbd', 'tbd'))
 client = filetransport.FileForwarderClient(datadir='/home/lucas/even/fw/working_dir', processor_coro = processor,
                                            force_reread_all=True)
 
-client.add_server("localhost", 8000, 8001)
+client.add_server("localhost", 7000, 7001)
 
-client.setup_connections()
-client.connect()
+client.connect_all()
 
 client.run()
