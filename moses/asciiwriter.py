@@ -36,7 +36,7 @@ import dbdreader
 import timeconversion
 import fast_gsw
 
-import loggers
+from . import loggers
 
 logger = loggers.get_logger(__name__)
 

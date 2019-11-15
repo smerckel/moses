@@ -7,7 +7,7 @@ import re
 import zmq
 import zmq.asyncio
 
-import loggers
+from . import loggers
 logger=loggers.get_logger(__name__)
 
 
