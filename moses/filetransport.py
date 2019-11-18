@@ -129,7 +129,7 @@ class DirWatcher(object):
         path : string
              path to directory
         '''
-        self.watcher.watch(path = path, flags = aionotify.Flags.CLOSE_WRITE)
+        self.watcher.watch(path = path, flags = aionotify.Flags.MOVED_TO | aionotify.Flags.CLOSE_WRITE)
 
     def is_valid_filename(self, fn):
         ''' Checks for filename validity
