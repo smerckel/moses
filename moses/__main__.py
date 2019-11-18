@@ -45,7 +45,7 @@ Optional the dbd data can be processed.
     parser.add_argument('--pub_port', type=int, help='(Common) port number used for publishing data', default=7000)
     parser.add_argument('--req_port', type=int, help='(Common) port number used for accepting queries from clients', default=7001)
 
-    parser.add_argument('--server', help='Publishing server to connect to. Format is server (using common port numbers, or server:pub_port:req_port to use specific port numbers.', nargs='+')
+    parser.add_argument('--server', '-s', help='Publishing server to connect to. Format is server (using common port numbers, or server:pub_port:req_port to use specific port numbers.', action='append')
     parser.add_argument('--force-reread', action='store_true', help='Force rereading all dbd files when the client is started. If not specified, the client will not attempt to retrieve any files that are reported missing at start up.')
     parser.add_argument('--processor', help=''''Post-process data. Options are 
   * "ascii", which converts the dbd files into ascii files
@@ -60,7 +60,6 @@ Optional the dbd data can be processed.
     ascii_directory = args.ascii_processor_directory
     pub_port = args.pub_port
     req_port = args.req_port
-
     writer = None # unless otherwise determined.
     if processor and len(processor)==2:
         raise NotImplementedError('Todo, make a fanned pipeline')
