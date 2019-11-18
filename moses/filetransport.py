@@ -236,8 +236,8 @@ class FileForwarder(object):
         
     async def main(self):
         ''' Main coroutine running all tasks concurrently. '''
-        tasks = [asyncio.create_task(self.task_publish_files_sent()),
-                 asyncio.create_task(self.task_respond_to_requests())]
+        tasks = [asyncio.ensure_future(self.task_publish_files_sent()),
+                 asyncio.ensure_future(self.task_respond_to_requests())]
         await self.dirwatcher.monitor_directories(event_coroutine=self.server.publish)
         self.server.close() # we won't be here though...
 
@@ -507,7 +507,7 @@ class FileForwarderClient(object):
             tasks = []
             for k, s in status.items():
                 if not s: # not reached yet
-                    tasks.append(asyncio.create_task(self.make_request(k,'LIST')))
+                    tasks.append(asyncio.ensure_future(self.make_request(k,'LIST')))
                     task_map.append(k)
             # wait for the result to come in
             results = await asyncio.gather( *tasks )
@@ -574,8 +574,8 @@ class FileForwarderClient(object):
         this.
         '''
         n = len(self.connections)
-        tasks = dict(FILE=[asyncio.create_task(self.listen(i)) for i in range(n)],
-                     INFO=[asyncio.create_task(self.listen_info(i)) for i in range(n)],
+        tasks = dict(FILE=[asyncio.ensure_future(self.listen(i)) for i in range(n)],
+                     INFO=[asyncio.ensure_future(self.listen_info(i)) for i in range(n)],
                      REQ=[])
         backlog_tasks = dict()
         
@@ -584,12 +584,12 @@ class FileForwarderClient(object):
             # for each task that received a file (and is finished), spawn it again.
             for i, t in enumerate(tasks['FILE']):
                 if t.done():
-                    tasks['FILE'][i] = asyncio.create_task(self.listen(i))
+                    tasks['FILE'][i] = asyncio.ensure_future(self.listen(i))
             # for each task that processed in file number count and is finished, spawn it again.
             # also span to remove the back log, if necessary.
             for i, t in enumerate(tasks['INFO']):
                 if t.done():
-                    tasks['INFO'][i] = asyncio.create_task(self.listen_info(i))
+                    tasks['INFO'][i] = asyncio.ensure_future(self.listen_info(i))
                     if self.receptions[i]:
                         files_received = len(self.receptions[i])
                     else:
@@ -599,7 +599,7 @@ class FileForwarderClient(object):
                         # we have a back log of files. Start a new tasks if for this server is non running already.
                         if not i in backlog_tasks:
                             logger.info("Starting backlog clearance process...")
-                            backlog_tasks[i] = asyncio.create_task(self.clear_backlog(i))
+                            backlog_tasks[i] = asyncio.ensure_future(self.clear_backlog(i))
             # remove any finished backlog_tasks...
             removables=[]
             for i, t in backlog_tasks.items():
