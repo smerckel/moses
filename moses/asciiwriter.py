@@ -130,7 +130,15 @@ class MosesDBDWriter(object):
         if output_directory:
             self.set_output_directory(output_directory)
         self.comment_character = comment
-        
+
+    def get_configuration_repr(self):
+        ''' Return a string specifying the configuration of this class '''
+        m = ['MosesDBDWriter: output directory : %s'%(self.data['output_directory'])]
+        for c in self.coordinate_sensor_names:
+            m.append('   Coordinate sensor : %s'%c)
+        m.append('--')
+        return m
+            
     def __enter__(self):
         if self.data['filename']:
             self.data['dbd'] = \

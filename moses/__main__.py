@@ -16,7 +16,7 @@ can figure out if there are any missing and fetch those on request.
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--pub_port', type=int, help='Port number used for publishing data', default=7000)
     parser.add_argument('--req_port', type=int, help='Port number used for accepting queries from clients', default=7001)
-    parser.add_argument('--interval', help='Publishing interval of number files sent in seconds', default=600)
+    parser.add_argument('--interval', type=int, help='Publishing interval of number files sent in seconds', default=600)
     parser.add_argument('directory', help='Directory to monitor (supply as many as needed)', nargs='+')
     args = parser.parse_args()
 
@@ -25,6 +25,9 @@ can figure out if there are any missing and fetch those on request.
     info_interval = args.interval
     directory = args.directory
     FW = filetransport.FileForwarder((pub_port, req_port), *directory, info_interval=info_interval)
+    #FW = filetransport.FileForwarder((8000, 8001), '/home/lucas/even/fw/from-glider', info_interval=5)
+    #FW = filetransport.FileForwarder((pub_port, req_port), , info_interval=info_interval)
+
     FW.run()
     
 
@@ -57,7 +60,8 @@ Optional the dbd data can be processed.
     ascii_directory = args.ascii_processor_directory
     pub_port = args.pub_port
     req_port = args.req_port
-    
+
+    writer = None # unless otherwise determined.
     if processor and len(processor)==2:
         raise NotImplementedError('Todo, make a fanned pipeline')
     elif processor and processor[0] == 'ascii':
@@ -87,6 +91,7 @@ Optional the dbd data can be processed.
             sys.stderr.write('PUB and REQ ports must be different.\n')
             sys.exit(3)
         client.add_server(_s, _pub, _req)
+    client.print_settings(writer)
     try:
         client.connect_all()
         client.run()
