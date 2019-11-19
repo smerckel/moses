@@ -115,7 +115,7 @@ class DirWatcher(object):
     directory are closed after writing, that is, a new file is written or a file
     is updated and the process is finished.
     '''
-    def __init__(self, loop, regex_pattern="[a-zA-Z]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+\.[stde]bd"):
+    def __init__(self, loop, regex_pattern="[a-zA-Z][a-zA-Z0-9]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+\.[stde]bd"):
         self.loop = loop
         self.watcher = aionotify.Watcher()
         self.regex = re.compile(regex_pattern)
