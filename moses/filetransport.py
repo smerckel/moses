@@ -417,7 +417,11 @@ class FileForwarderClient(object):
         written.
         '''
         logger.info("Writing file {}".format(filename))
-        path = os.path.join(self.datadir, filename)
+        glidername, *_ = filename.split('-')
+        directory = os.path.join(self.datadir, glidername, 'from-glider')
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        path = os.path.join(directory, filename)
         with open(path, 'wb') as fp:
             fp.write(contents)
         if not self.processor_coro is None:
@@ -517,7 +521,7 @@ class FileForwarderClient(object):
                     self.reconnect_req_socket(i)
                     continue
                 status[i] = 1 #valid response.
-                logger.info("Remote list of files already sent:")
+                logger.info("Remote list of files already sent by server %d:"%(i))
                 for _r in r:
                     logger.info("\t{}".format(_r.decode('utf-8').lower()))
                 if not self.force_reread_all:
