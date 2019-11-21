@@ -3,6 +3,7 @@ import sys
 
 from . import filetransport
 from . import asciiwriter
+from . import corioliswriter
 
 def script_moses_dbd_server():
     description='''
@@ -49,9 +50,13 @@ Optional the dbd data can be processed.
     parser.add_argument('--force-reread', action='store_true', help='Force rereading all dbd files when the client is started. If not specified, the client will not attempt to retrieve any files that are reported missing at start up.')
     parser.add_argument('--processor', help=''''Post-process data. Options are 
   * "ascii", which converts the dbd files into ascii files
-  * "coriolis", which pushes the data to the coriolis ftp site.''', choices=['ascii','coriolis'], nargs='+')
+  * "coriolis", which pushes the data to the coriolis ftp site.''', choices=['ascii','coriolis'], action='append')
     parser.add_argument('--ascii_processor_directory', help='Directory for the ascii processor to write the converted data files to')
-    
+    parser.add_argument('--coriolis_processor_directory', help='Directory where converted .m and .dat files are written to')
+    parser.add_argument('--coriolis_skip_ftp_transfer', action='store_true', help='If set, the actual ftp transfer is is not executed')
+    parser.add_argument('--coriolis_target', default='coriolis', help='Sets the FTP target, useful for testing.')
+    parser.add_argument('--coriolis_id', help='ID for subdirectory on coriolis server (start date of experiment. Example: 20191123')
+                        
     args = parser.parse_args()
     server = args.server
     dbd_directory = args.dbd_directory
@@ -60,14 +65,36 @@ Optional the dbd data can be processed.
     ascii_directory = args.ascii_processor_directory
     pub_port = args.pub_port
     req_port = args.req_port
-    writer = None # unless otherwise determined.
-    if processor and len(processor)==2:
-        raise NotImplementedError('Todo, make a fanned pipeline')
-    elif processor and processor[0] == 'ascii':
-        writer = asciiwriter.MosesDBDWriter(output_directory=ascii_directory)
-        processor = asciiwriter.processor(writer, extensions=('sbd', 'tbd'))
+    coriolis_processor_directory = args.coriolis_processor_directory
+    coriolis_skip_ftp_transfer = args.coriolis_skip_ftp_transfer
+    coriolis_target = args.coriolis_target
+    coriolis_id = args.coriolis_id
 
-    client = filetransport.FileForwarderClient(datadir=dbd_directory, processor_coro = processor,
+    writers = []
+    if processor:
+        for p in processor:
+            if p == 'ascii':
+                writers.append(asciiwriter.MosesDBDWriter(output_directory=ascii_directory))
+            elif p == 'coriolis':
+                # check all required (non-default parameters)
+                if coriolis_id is None:
+                    sys.stderr.write('Coriolis ID MUST be specified.\n')
+                    sys.exit(2)
+                if coriolis_processor_directory is None:
+                    sys.stderr.write('Coriolis processor directory MUST be specified.\n')
+                    sys.exit(3)
+                _w = corioliswriter.Coriolis_FTP_Transfer(target = coriolis_target,
+                                                          ID = coriolis_id,
+                                                          working_directory = coriolis_processor_directory,
+                                                          skip_ftp_transfer = coriolis_skip_ftp_transfer)
+                writers.append(_w)
+            else:
+                raise NotImplementedError("Processor type not implemented.")
+        processor_coro = asciiwriter.processor(writers, extensions=('sbd', 'tbd'))
+    else:
+        processor_coro = None
+
+    client = filetransport.FileForwarderClient(datadir=dbd_directory, processor_coro = processor_coro,
                                                force_reread_all=force_reread)
     for s in server:
         if ":" in s:
@@ -90,7 +117,8 @@ Optional the dbd data can be processed.
             sys.stderr.write('PUB and REQ ports must be different.\n')
             sys.exit(3)
         client.add_server(_s, _pub, _req)
-    client.print_settings(writer)
+    for writer in writers:
+        client.print_settings(writer)
     try:
         client.connect_all()
         client.run()

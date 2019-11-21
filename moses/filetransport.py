@@ -425,7 +425,7 @@ class FileForwarderClient(object):
         with open(path, 'wb') as fp:
             fp.write(contents)
         if not self.processor_coro is None:
-            self.processor_coro.send((self.datadir, filename))
+            self.processor_coro.send((directory, filename))
         
     async def listen(self, i):
         ''' Coroutine to listen for incoming files

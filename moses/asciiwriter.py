@@ -371,7 +371,7 @@ class MosesDBDWriter(object):
 
 
 @coroutine.coroutine
-def processor(writer, extensions=('sbd', 'tbd')):
+def processor(writers, extensions=('sbd', 'tbd')):
     datafiles = dict(sbd=set(), tbd=set())
     k0, k1 = extensions
     while True:
@@ -383,8 +383,9 @@ def processor(writer, extensions=('sbd', 'tbd')):
         if available:
             for f in available:
                 fn = os.path.join(datadir, "{}.{}".format(f, k0))
-                if writer.process(fn):
-                    logger.info("{} Successfully processed.".format(fn))
+                for i, writer in enumerate(writers):
+                    if writer.process(fn):
+                        logger.info("{} Successfully processed (writer {}).".format(fn, i))
                 datafiles[k0].remove(f)
                 datafiles[k1].remove(f)
                 
