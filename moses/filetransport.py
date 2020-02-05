@@ -115,11 +115,11 @@ class DirWatcher(object):
     directory are closed after writing, that is, a new file is written or a file
     is updated and the process is finished.
     '''
-    def __init__(self, loop, regex_pattern="[a-zA-Z][a-zA-Z0-9]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+\.[stde]bd"):
+    def __init__(self, loop, regex_pattern=None):
         self.loop = loop
         self.watcher = aionotify.Watcher()
+        regex_pattern = regex_pattern or "[a-zA-Z][a-zA-Z0-9]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+\.[stde]bd"
         self.regex = re.compile(regex_pattern)
-
         
     def add_watch(self, path):
         ''' add a directory name to watch
@@ -182,7 +182,7 @@ class FileForwarder(object):
     reason not been received.
     '''
     
-    def __init__(self, ports, *directories, loop=None, info_interval=60):
+    def __init__(self, ports, *directories, loop=None, info_interval=60, regex_pattern=None):
         ''' constructor
 
         Parameters
@@ -195,13 +195,15 @@ class FileForwarder(object):
             event loop. If none, this will lead to asyncio's default eventloop.
         info_interval : int (default 60)
             time interval in seconds between publishing the number of files transmitted.
+        regex_pattern : string (default None)
+            regular expression for dirwatcher to filter its files.
 
         Note the pub and rep port numbers should be matched by the client's
         sub and req port numbers.
         '''
         self.loop = loop or asyncio.get_event_loop()
         self.server = FileTransportServer(*ports)
-        self.dirwatcher = DirWatcher(self.loop)
+        self.dirwatcher = DirWatcher(self.loop, regex)
         for d in directories:
             self.dirwatcher.add_watch(d)
         self.info_interval = info_interval
@@ -259,9 +261,9 @@ class FileForwarderClient(object):
     If the client figures out there are files missing, it will use a req-rep connection to obtain those 
     directly from the server.
     '''
-    SOCKET_TIMEOUT = 1000 # 5000 ms
+    SOCKET_TIMEOUT = 30000 # 10000 ms or 10 s
     
-    def __init__(self, datadir='.', processor_coro = None, force_reread_all=False):
+    def __init__(self, datadir='.', processor_coro = None, force_reread_all=False, sub_dir='from-glider'):
         ''' Constructor
         
         PARAMETERS
@@ -274,6 +276,9 @@ class FileForwarderClient(object):
 
         force_reread_all : bool
             All files transmitted by the server will be requested to send again if True.
+        
+        sub_dir : string (default 'from-glider')
+            sets <datadir>/<glider>/<subdir>
          
         Notes
         -----
@@ -291,7 +296,8 @@ class FileForwarderClient(object):
         self.datadir = datadir
         self.processor_coro = processor_coro
         self.force_reread_all = force_reread_all
-
+        self.sub_dir = sub_dir
+        
     def print_settings(self, writer):
         w = lambda s : sys.stdout.write(s+"\n")
         c = self.connections
@@ -418,7 +424,7 @@ class FileForwarderClient(object):
         '''
         logger.info("Writing file {}".format(filename))
         glidername, *_ = filename.split('-')
-        directory = os.path.join(self.datadir, glidername, 'from-glider')
+        directory = os.path.join(self.datadir, glidername, self.sub_dir)
         if not os.path.exists(directory):
             os.makedirs(directory)
         path = os.path.join(directory, filename)

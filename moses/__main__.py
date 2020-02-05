@@ -1,9 +1,18 @@
 import argparse
 import sys
 
+from dbdreader import DbdError
+
 from . import filetransport
 from . import asciiwriter
 from . import corioliswriter
+
+def gen_error(errorno, errormsg):
+    sys.stderr.write("\n")
+    sys.stderr.write("Runtime error: {errormsg}\n".format(errormsg=errormsg))
+    sys.stderr.write("\n")
+    sys.exit(errorno)
+
 
 def script_moses_dbd_server():
     description='''
@@ -127,3 +136,46 @@ Optional the dbd data can be processed.
         sys.exit(10)
         
 
+
+def script_coriolis_upload():
+    description='''
+Bulk upload files to Coriolis using FTP transfer.
+
+A program that allows to create and transfer datafiles for submission to the Coriolis Data Center.
+The key argument to supply is the filenames to be processed. This can be either sbd or dbd files. 
+The corresponding tbd or ebd files are assumed to be in the same directory.
+'''
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('filenames', nargs='+', help='List of sbd or dbd files to be processed and transported.')
+    parser.add_argument('--coriolis_processor_directory', help='Directory where converted .m and .dat files are written to')
+    parser.add_argument('--coriolis_skip_ftp_transfer', action='store_true', help='If set, the actual ftp transfer is is not executed')
+    parser.add_argument('--coriolis_target', default='coriolis', help='Sets the FTP target, useful for testing.')
+    parser.add_argument('--coriolis_id', help='ID for subdirectory on coriolis server (start date of experiment. Example: 20191123')
+                        
+    args = parser.parse_args()
+    filenames = args.filenames
+    coriolis_processor_directory = args.coriolis_processor_directory
+    coriolis_skip_ftp_transfer = args.coriolis_skip_ftp_transfer
+    coriolis_target = args.coriolis_target
+    coriolis_id = args.coriolis_id
+
+    endings = [i.endswith('sbd') or i.endswith('dbd') for i in filenames]
+    if not all(endings):
+        gen_error(1, 'Not files seem to have the sbd or dbd extension...')
+    if coriolis_processor_directory is None:
+        gen_error(2, "Specify working_directory for the data processer (--coriolis_processor_directory)")
+    if coriolis_id is None:
+        gen_error(4,"Specify ID to use at the coriolis FTP site, usually start of experiment. (--coriolis_id)")
+    
+    c_ftp_transfer = corioliswriter.Coriolis_FTP_Transfer(target=coriolis_target,
+                                                          ID=coriolis_id,
+                                                          working_directory=coriolis_processor_directory,
+                                                          skip_ftp_transfer=coriolis_skip_ftp_transfer)
+    for f in filenames:
+        print("Processing {}".format(f))
+        try:
+            processed = c_ftp_transfer.process(f)
+            if not processed:
+                print("Files already present (or transfer skipped).")
+        except DbdError as e:
+            print(e)
