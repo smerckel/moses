@@ -147,17 +147,17 @@ The corresponding tbd or ebd files are assumed to be in the same directory.
 '''
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('filenames', nargs='+', help='List of sbd or dbd files to be processed and transported.')
-    parser.add_argument('--coriolis_processor_directory', help='Directory where converted .m and .dat files are written to')
-    parser.add_argument('--coriolis_skip_ftp_transfer', action='store_true', help='If set, the actual ftp transfer is is not executed')
-    parser.add_argument('--coriolis_target', default='coriolis', help='Sets the FTP target, useful for testing.')
-    parser.add_argument('--coriolis_id', help='ID for subdirectory on coriolis server (start date of experiment. Example: 20191123')
+    parser.add_argument('--processor_directory', help='Directory where converted .m and .dat files are written to')
+    parser.add_argument('--skip_ftp_transfer', action='store_true', help='If set, the actual ftp transfer is is not executed')
+    parser.add_argument('--target', default='coriolis', help='Sets the FTP target, useful for testing.')
+    parser.add_argument('--id', help='ID for subdirectory on coriolis server (start date of experiment. Example: 20191123')
                         
     args = parser.parse_args()
     filenames = args.filenames
-    coriolis_processor_directory = args.coriolis_processor_directory
-    coriolis_skip_ftp_transfer = args.coriolis_skip_ftp_transfer
-    coriolis_target = args.coriolis_target
-    coriolis_id = args.coriolis_id
+    coriolis_processor_directory = args.processor_directory
+    coriolis_skip_ftp_transfer = args.skip_ftp_transfer
+    coriolis_target = args.target
+    coriolis_id = args.id
 
     endings = [i.endswith('sbd') or i.endswith('dbd') for i in filenames]
     if not all(endings):
