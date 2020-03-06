@@ -63,7 +63,9 @@ class CoriolisDataFormat(object):
         None if files already exist and force==False
 
         '''
-        dbds = dbdreader.MultiDBD(filenames=[filename], include_paired=True)
+        banned_missions = "autoexec.mi status.mi initial.mi lastgasp.mi overtime.mi overdpth.mi trim.mi ini0.mi ini1.mi".split()
+        dbds = dbdreader.MultiDBD(filenames=[filename], complement_files=True,
+                                  banned_missions = banned_missions)
         self._set_parameters(dbds)
         data = dict([(p,dbds.get(p, decimalLatLon=False))
                      for p in self.parameters])
