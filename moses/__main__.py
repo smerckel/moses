@@ -179,3 +179,40 @@ The corresponding tbd or ebd files are assumed to be in the same directory.
                 print("Files already present (or transfer skipped).")
         except DbdError as e:
             print(e)
+
+
+
+
+def script_convert_for_coriolis():
+    description='''
+Bulk conversion of glider files into .m/.dat pairs.
+
+Converts dbd/ebd or sbd/tbd pairs into m/dat file pairs, which can be processed further by processing 
+tools by Coriolis.
+'''
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument('filenames', nargs='+', help='List of sbd or dbd files to be processed and transported.')
+    parser.add_argument('--processor_directory', help='Directory where converted .m and .dat files are written to')
+                        
+    args = parser.parse_args()
+    filenames = args.filenames
+    coriolis_processor_directory = args.processor_directory
+
+    endings = [i.endswith('sbd') or i.endswith('dbd') for i in filenames]
+    if not all(endings):
+        gen_error(1, 'Not files seem to have the sbd or dbd extension...')
+    if coriolis_processor_directory is None:
+        gen_error(2, "Specify working_directory for the data processer (--coriolis_processor_directory)")
+    
+    c_processor = corioliswriter.Coriolis_FTP_Transfer(target='debug',
+                                                       ID=None,
+                                                       working_directory=coriolis_processor_directory,
+                                                       skip_ftp_transfer=True)
+    for f in filenames:
+        print("Processing {}".format(f))
+        try:
+            processed = c_processor.process(f)
+        except DbdError as e:
+            print(e)
+
+            
