@@ -30,11 +30,10 @@ with m:
 m.process('/home/lucas/gliderdata/nsb3_201907/ld/comet-2019-222-02-000.sbd')
 '''
 import os.path
+import arrow
 
 import coroutine
 import dbdreader
-import timeconversion
-import fast_gsw
 
 from . import loggers
 
@@ -43,13 +42,20 @@ logger = loggers.get_logger(__name__)
 # Functions for derived variables
 
 def salinity_fun(C,T,P, lon, lat):
-    return fast_gsw.SA(C*10, T, P*10, lon.mean(), lat.mean())
+    SP = gsw.SP_from_C(C*10, T, P*10)
+    SA = gsw.SA_from_SP(SP, P*10, lon.mean(), lat.mean())
+    return SA
 
 def potential_density_fun(C,T,P, lon, lat):
-    return fast_gsw.pot_rho(C*10, T, P*10, lon.mean(), lat.mean())
+    SA = salinity_fun(C, T, P, lon, lat)
+    pot_rho = gsw.pot_rho_t_exact(SA, T, P*10, 0.)
+    return pot_rho
 
 def conservative_temperature_fun(C,T,P, lon, lat):
-    return fast_gsw.CT(C*10, T, P*10, lon.mean(), lat.mean())
+    SA = salinity_fun(C, T, P, lon, lat)
+    CT = gsw.CT_from_t(SA, T, P*10)
+    return CT
+    
 
 __CTD_PARAMETERS = "sci_water_cond sci_water_temp sci_water_pressure m_gps_lon m_gps_lat".split()
 
@@ -254,7 +260,7 @@ class MosesDBDWriter(object):
         glidername = self.data['glidername']
         sensorname = DB['sensor'][parameter_name]
         variable = DB['variable'][parameter_name]
-        tstr = timeconversion.epochToDateStr(t0, "%Y%m%dT%H%M%S")
+        tstr = arrow.get(t0).format("YYYYMMDDTHHmmss")
         s = "{glidername}_{sensorname}_{variable}_{tstr}.txt".format(glidername=glidername, sensorname=sensorname, variable=variable, tstr=tstr)
         return s
     
@@ -278,7 +284,7 @@ class MosesDBDWriter(object):
         c = self.comment_character
         glidername = self.data["glidername"]
         platform = DB["platform"][glidername]
-        datestr = timeconversion.epochToDateStr(t[0])
+        datestr = arrow.get(t0).format("DD MMM YYYY HH:mm")
         p = "{} ({})".format(parametername, unit)
         header  = "{comment} Platform    : {platform} ({glidername})\n".format(comment=c,
                                                                                platform=platform,
