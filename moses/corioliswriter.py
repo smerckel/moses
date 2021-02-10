@@ -66,8 +66,17 @@ class CoriolisDataFormat(object):
 
         '''
         banned_missions = "autoexec.mi status.mi initial.mi lastgasp.mi overtime.mi overdpth.mi trim.mi ini0.mi ini1.mi".split()
-        dbds = dbdreader.MultiDBD(filenames=[filename], complement_files=True,
-                                  banned_missions = banned_missions)
+        try:
+            dbds = dbdreader.MultiDBD(filenames=[filename], complement_files=True,
+                                      banned_missions = banned_missions)
+        except dbdreader.DbdError as e:
+            code = e.args[0]
+            if code == dbdreader.DBD_ERROR_ALL_FILES_BANNED:
+                logger.info("All submitted files were considered banned missions. Nothing processed.")
+                return None
+            else:
+                # unhandled error. Reraise error.
+                raise e
         self._set_parameters(dbds)
         try:
             data = dict([(p,dbds.get(p, decimalLatLon=False))
@@ -275,6 +284,7 @@ class Coriolis_FTP_Transfer(object):
         transferred.
         '''
         path = self._generate_server_path(glider)
+        logger.debug(f"Path at remote server: {path}")
         _s = self.server_info
         with FTP(_s.host, _s.user, _s.password) as ftp:
             ftp.login(_s.user, _s.password)
