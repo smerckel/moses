@@ -9,7 +9,9 @@ from scipy.interpolate import interp1d
 import dbdreader
 
 from . import coriolis_data
+from . import loggers
 
+logger = loggers.get_logger(__name__)
 
 class CoriolisDataFormat(object):
 
@@ -67,8 +69,13 @@ class CoriolisDataFormat(object):
         dbds = dbdreader.MultiDBD(filenames=[filename], complement_files=True,
                                   banned_missions = banned_missions)
         self._set_parameters(dbds)
-        data = dict([(p,dbds.get(p, decimalLatLon=False))
-                     for p in self.parameters])
+        try:
+            data = dict([(p,dbds.get(p, decimalLatLon=False))
+                         for p in self.parameters])
+        except dbdreader.DbdError:
+            logger.error("In convert(): failed to read all requested parameters from {stde}bd files!")
+            return None
+
         run_name, matlab_fn  = self.get_fn_names(dbds)
         start_time = self.get_start_time(data)
         output_filename_m = os.path.join(self.output_dir, matlab_fn)
@@ -84,6 +91,7 @@ class CoriolisDataFormat(object):
 
         with open(output_filename_dat, 'w') as fp:
             self.write_data_ascii(fp, data)
+        logger.debug(f"Files written for {filename}")
         return output_filename_m, output_filename_dat
     
     def get_start_time(self, data):
@@ -224,6 +232,7 @@ class Coriolis_FTP_Transfer(object):
         self.working_directory = working_directory
         self.skip_ftp_transfer = skip_ftp_transfer
 
+        
     def get_configuration_repr(self):
         ''' Return a string specifying the configuration of this class 
 

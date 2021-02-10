@@ -60,6 +60,9 @@ PARAMETERS = dict(amadeus = ['m_depth',
                            'sci_flbbcd_bb_units',
                            'sci_flbbcd_cdom_units',
                            'sci_m_present_time',
+                           'sci_oxy4_oxygen',
                            'sci_water_cond',
                            'sci_water_pressure',
-                           'sci_water_temp'])
+                           'sci_water_temp'],
+                  sim = ['m_depth',
+                         'm_roll'])

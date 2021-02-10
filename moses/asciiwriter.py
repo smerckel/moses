@@ -385,14 +385,19 @@ def processor(writers, extensions=('sbd', 'tbd')):
         basename, ext = os.path.splitext(filename)
         key = ext[1:] # remove the leading dot
         datafiles[key].add(basename)
-        available = datafiles[k0].intersection(datafiles[k1])
+        if k1:
+            available = datafiles[k0].intersection(datafiles[k1])
+        else:
+            available = datafiles[k0]
+        logger.debug(f"available: {available}")
         if available:
             for f in available:
                 fn = os.path.join(datadir, "{}.{}".format(f, k0))
                 for i, writer in enumerate(writers):
                     if writer.process(fn):
                         logger.info("{} Successfully processed (writer {}).".format(fn, i))
-                datafiles[k0].remove(f)
+            datafiles[k0].remove(f)
+            if k1:
                 datafiles[k1].remove(f)
                 
     
