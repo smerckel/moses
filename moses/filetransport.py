@@ -431,6 +431,7 @@ class FileForwarderClient(object):
         with open(path, 'wb') as fp:
             fp.write(contents)
         if not self.processor_coro is None:
+            logger.debug(f"Processor_coro called with {directory} and {filename}")
             self.processor_coro.send((directory, filename))
         
     async def listen(self, i):

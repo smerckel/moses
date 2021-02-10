@@ -6,6 +6,9 @@ from dbdreader import DbdError
 from . import filetransport
 from . import asciiwriter
 from . import corioliswriter
+from . import loggers
+
+logger = loggers.get_logger(__name__)
 
 def gen_error(errorno, errormsg):
     sys.stderr.write("\n")
@@ -100,9 +103,11 @@ Optional the dbd data can be processed.
             else:
                 raise NotImplementedError("Processor type not implemented.")
         processor_coro = asciiwriter.processor(writers, extensions=('sbd', 'tbd'))
+        # To test with simulator (sbd files only, use this processor:
+        #processor_coro = asciiwriter.processor(writers, extensions=('sbd', None))
     else:
         processor_coro = None
-
+    logger.debug(f"writers: {writers}")
     client = filetransport.FileForwarderClient(datadir=dbd_directory, processor_coro = processor_coro,
                                                force_reread_all=force_reread)
     for s in server:
