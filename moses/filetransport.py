@@ -203,7 +203,7 @@ class FileForwarder(object):
         '''
         self.loop = loop or asyncio.get_event_loop()
         self.server = FileTransportServer(*ports)
-        self.dirwatcher = DirWatcher(self.loop, regex)
+        self.dirwatcher = DirWatcher(self.loop, regex_pattern)
         for d in directories:
             self.dirwatcher.add_watch(d)
         self.info_interval = info_interval
