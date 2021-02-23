@@ -315,7 +315,6 @@ class FileForwarderClient(object):
             w('No ascii file writer specified.')
         else:
             m = writer.get_configuration_repr()
-            print(m)
             for _m in m:
                 w(_m)
         w('')
