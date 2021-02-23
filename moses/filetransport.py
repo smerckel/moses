@@ -11,7 +11,6 @@ import zmq.asyncio
 from moses import loggers
 logger=loggers.get_logger(__name__)
 
-
 Connection = namedtuple('Connection', 'server ports'.split())
 
 class FileTransportServer(object):
@@ -65,6 +64,7 @@ class FileTransportServer(object):
         await self.publisher.send_multipart(mesg)
         self.sent_files.append((path, filename))
         logger.info("published {}/{}.".format(path, filename))
+        logger.info(f"Number of total published files: {len(self.sent_files)}.")
 
     async def publish_info(self):
         ''' Coroutine to publish the number of files that have been transmitted '''
@@ -606,6 +606,7 @@ class FileForwarderClient(object):
                     else:
                         files_received = 0
                     files_sent = t.result()
+                    logger.debug(f"Files received : {files_received}, files sent: {files_sent}.")
                     if files_received != files_sent:
                         # we have a back log of files. Start a new tasks if for this server is non running already.
                         if not i in backlog_tasks:
