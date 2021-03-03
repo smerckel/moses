@@ -94,17 +94,24 @@ class CoriolisDataFormat(object):
         if os.path.exists(output_filename_dat) and os.path.exists(output_filename_m) and not force:
             return None
 
-        with open(output_filename_dat, 'w') as fp:
-            is_ascii_file_written = self.write_data_ascii(fp, data)
-
-        if not is_ascii_file_written:
+        # Check whether we have at least 2 data points. For less, write_data_ascii breaks on the interpolation
+        matfile_to_be_written = False
+        for p, (t,v) in data.items():
+            if len(t)>=2:
+                matfile_to_be_written=True
+                break
+        if not matfile_to_be_written:
             logger.info(f"File {output_filename_dat} not written, because of lack of data. Not writing {output_filename_m} either.")
             return  None
         
+        logger.debug(f"Writing data for {filename}")
         with open(output_filename_m,'w') as fp:
             self.write_header(fp, run_name, start_time)
             self.write_data(fp, data)
             self.write_footer(fp, matlab_fn)
+            
+        with open(output_filename_dat, 'w') as fp:
+            self.write_data_ascii(fp, data)
 
         logger.debug(f"Files written for {filename}")
         return output_filename_m, output_filename_dat
@@ -181,7 +188,7 @@ class CoriolisDataFormat(object):
         for i, (k, (t,v)) in enumerate(data.items()):
             fp.write("global {}\n".format(k))
             fp.write("{} = {:d};\n".format(k,i+2)) # + 2 as we have m_present_time first, and matlab offsets at 1
-                     
+        
     def write_footer(self, fp, matlab_filename):
         ''' Writes footer of the .m part of the data file pairs
         
@@ -208,10 +215,7 @@ class CoriolisDataFormat(object):
         # get all timestamps available, remove dupes and sort them...
         all_timestamps = np.array([t for t in set(np.hstack([t for k, (t,v) in data.items()]))])
         all_timestamps.sort()
-        # We need at least 2 timestamps for ifun not to break. If there are less, we have no data to write.
-        if all_timestamps.shape[0]<2:
-            return False # Empty file written.
-        # define an interpolatin function to find the appropriate index for each time stamp:
+        # define an interpolation function to find the appropriate index for each time stamp:
         ifun = interp1d(all_timestamps, np.arange(all_timestamps.shape[0]))
         # fill the data
         keys0 = list(data.keys())
@@ -228,8 +232,6 @@ class CoriolisDataFormat(object):
             s=(fmt%(line))
             s=s.replace("nan", "NaN")
             fp.write("%s\n"%(s))
-        return True # file written with data.
-
     
 class Coriolis_FTP_Transfer(object):
 
