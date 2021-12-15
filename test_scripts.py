@@ -6,6 +6,15 @@ from moses import __main__
 
 import glob
 
+
+
+if 1:
+    # test the server on simulator
+    sys.argv=['main', '--interval=30', '/home/lucas/working/virtualenv/moses/gliders/sim']
+    __main__.script_moses_dbd_server()
+
+
+
 if 0: # test 0
     fns = dbdreader.DBDList(glob.glob('/home/lucas/gliderdata/caboverde_201911/ld/dipsy*.sbd'))
     fns.sort()
@@ -18,7 +27,7 @@ if 0: # test 0
     __main__.script_coriolis_upload()
 
 
-if 1:
+if 0:
     fns = dbdreader.DBDList(glob.glob('/home/lucas/gliderdata/caboverde_201911/hd/amadeus*.dbd'))
     fns.sort()
 

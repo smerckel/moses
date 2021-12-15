@@ -27,17 +27,19 @@ can figure out if there are any missing and fetch those on request.
 
 '''
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument('--pub_port', type=int, help='Port number used for publishing data', default=7000)
-    parser.add_argument('--req_port', type=int, help='Port number used for accepting queries from clients', default=7001)
+    parser.add_argument('--pub_port', type=int, help='Port number used for publishing data (default: 7000)', default=7000)
+    parser.add_argument('--req_port', type=int, help='Port number used for accepting queries from clients (default: 7001)', default=7001)
     parser.add_argument('--interval', type=int, help='Publishing interval of number files sent in seconds', default=600)
-    parser.add_argument('directory', help='Directory to monitor (supply as many as needed)', nargs='+')
+    parser.add_argument('directory', help='Directory to monitor (supply as many as needed, and may include log directories)', nargs='+')
     args = parser.parse_args()
 
     pub_port = args.pub_port
     req_port = args.req_port
     info_interval = args.interval
     directory = args.directory
-    FW = filetransport.FileForwarder((pub_port, req_port), *directory, info_interval=info_interval)
+    #regex_pattern=".*\.log|.*\.[st]bd"
+    regex_pattern = "[a-zA-Z].*\.log|[a-zA-Z][a-zA-Z0-9]+-[0-9]+-[0-9]+-[0-9]+-[0-9]+\.[stde]bd"
+    FW = filetransport.FileForwarder((pub_port, req_port), *directory, info_interval=info_interval, regex_pattern=regex_pattern)
     #FW = filetransport.FileForwarder((8000, 8001), '/home/lucas/even/fw/from-glider', info_interval=5)
     #FW = filetransport.FileForwarder((pub_port, req_port), , info_interval=info_interval)
 
@@ -55,10 +57,10 @@ Optional the dbd data can be processed.
 '''
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument('dbd_directory', help='Directory where dbd files are written into')
-    parser.add_argument('--pub_port', type=int, help='(Common) port number used for publishing data', default=7000)
-    parser.add_argument('--req_port', type=int, help='(Common) port number used for accepting queries from clients', default=7001)
+    parser.add_argument('--pub_port', type=int, help='(Common) port number used for publishing data (default: 7000)', default=7000)
+    parser.add_argument('--req_port', type=int, help='(Common) port number used for accepting queries from clients (default: 7001)', default=7001)
 
-    parser.add_argument('--server', '-s', help='Publishing server to connect to. Format is server (using common port numbers, or server:pub_port:req_port to use specific port numbers.', action='append')
+    parser.add_argument('--server', '-s', help='Publishing server(s) to connect to. Format is server (using common port numbers, or server:pub_port:req_port to use specific port numbers.', action='append')
     parser.add_argument('--force-reread', action='store_true', help='Force rereading all dbd files when the client is started. If not specified, the client will not attempt to retrieve any files that are reported missing at start up.')
     parser.add_argument('--processor', help=''''Post-process data. Options are 
   * "ascii", which converts the dbd files into ascii files
@@ -66,7 +68,7 @@ Optional the dbd data can be processed.
     parser.add_argument('--ascii_processor_directory', help='Directory for the ascii processor to write the converted data files to')
     parser.add_argument('--coriolis_processor_directory', help='Directory where converted .m and .dat files are written to')
     parser.add_argument('--coriolis_skip_ftp_transfer', action='store_true', help='If set, the actual ftp transfer is is not executed')
-    parser.add_argument('--coriolis_target', default='coriolis', help='Sets the FTP target, useful for testing.')
+    parser.add_argument('--coriolis_target', default='coriolis', help='Sets the FTP target, useful for testing (default: coriolis).')
     parser.add_argument('--coriolis_id', help='ID for subdirectory on coriolis server (start date of experiment. Example: 20191123')
                         
     args = parser.parse_args()

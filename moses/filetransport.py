@@ -10,8 +10,13 @@ import zmq.asyncio
 
 from moses import loggers
 logger=loggers.get_logger(__name__)
+logger.setLevel(loggers.logging.INFO) # DISABLES debug PRINTING
+
 
 Connection = namedtuple('Connection', 'server ports'.split())
+
+TYPE_DATAFILE = b'DATA'
+TYPE_LOGFILE = b'LOG'
 
 class FileTransportServer(object):
     ''' File transport server
@@ -48,7 +53,9 @@ class FileTransportServer(object):
     async def publish(self,path, filename):
         ''' Coroutine to publish a filename
 
-        Publish the filename as a composite message [b'FILE', binarydata]
+        Publish the filename as a composite message [b'FILE', TYPE, binarydata]
+
+        TYPE = b'DATA' | b'LOG'
         
         Parameters
         ----------
@@ -60,7 +67,10 @@ class FileTransportServer(object):
         full_path = os.path.join(path, filename)
         with open(full_path, 'rb') as fp:
             bin_data = fp.read()
-        mesg = [b"FILE", filename.encode('utf-8'), bin_data]
+
+        glider, file_type = self.get_path_info(path)
+            
+        mesg = [b"FILE", filename.encode('utf-8'), file_type, glider.encode('utf-8'), bin_data]
         await self.publisher.send_multipart(mesg)
         self.sent_files.append((path, filename))
         logger.info("published {}/{}.".format(path, filename))
@@ -95,11 +105,29 @@ class FileTransportServer(object):
                 mesg = [b'NOFILE']
             else:
                 mesg = [b'FILE']
-                path = os.path.join(*self.sent_files[i])
-                with open(path, 'rb') as fp:
+                fullpath = os.path.join(*self.sent_files[i])
+                path, filename = os.path.split(fullpath)
+                glider, file_type = self.get_path_info(path)
+                mesg.append(filename.encode('utf-8'))
+                mesg.append(file_type)
+                mesg.append(glider.encode('utf-8'))
+                with open(fullpath, 'rb') as fp:
                     mesg.append(fp.read())
         await self.responder.send_multipart(mesg)
         
+    def get_path_info(self, path):
+        ''' Returns glidername and filetype based on path structure.'''
+
+        glider = path.split(os.sep)[-2].lower()
+        sub_directory = path.split(os.sep)[-1].lower()
+        if sub_directory == 'logs':
+            file_type = TYPE_LOGFILE
+        elif sub_directory == 'from-glider':
+            file_type = TYPE_DATAFILE
+        else:
+            raise ValueError(f"Unhandled directory type. I expect it to end in logs or from-glider, but got {sub_directory}.")
+        return glider, file_type
+    
     def close(self):
         ''' close all sockets '''
         self.publisher.close()
@@ -171,7 +199,9 @@ class DirWatcher(object):
         '''
         while True:
             event = await self.watcher.get_event()
+            logger.debug(f"Got a modified file for {event.name}.")
             if self.is_valid_filename(event.name):
+                logger.debug(f"File {event.name} is classified as valid.")
                 await event_coroutine(path=event.alias, filename=event.name)
 
 class FileForwarder(object):
@@ -190,7 +220,7 @@ class FileForwarder(object):
         ports : tuple with port numbers (ints)
             portnumbers for pub-sub port and req-rep port
         *directories : strings
-            paths of the directories to be monitored.
+            paths of the directories to be monitored. Expects to have from-glider and logs as subdirectories.
         loop : event loop (default None)
             event loop. If none, this will lead to asyncio's default eventloop.
         info_interval : int (default 60)
@@ -205,7 +235,9 @@ class FileForwarder(object):
         self.server = FileTransportServer(*ports)
         self.dirwatcher = DirWatcher(self.loop, regex_pattern)
         for d in directories:
-            self.dirwatcher.add_watch(d)
+            # add the subdirectories separately.
+            for s in ["from-glider", "logs"]:
+                self.dirwatcher.add_watch(os.path.join(d,s))
         self.info_interval = info_interval
         self.print_settings(directories, *ports, info_interval)
 
@@ -263,7 +295,7 @@ class FileForwarderClient(object):
     '''
     SOCKET_TIMEOUT = 30000 # 10000 ms or 10 s
     
-    def __init__(self, datadir='.', processor_coro = None, force_reread_all=False, sub_dir='from-glider'):
+    def __init__(self, datadir='.', processor_coro = None, force_reread_all=False):
         ''' Constructor
         
         PARAMETERS
@@ -276,10 +308,7 @@ class FileForwarderClient(object):
 
         force_reread_all : bool
             All files transmitted by the server will be requested to send again if True.
-        
-        sub_dir : string (default 'from-glider')
-            sets <datadir>/<glider>/<subdir>
-         
+                 
         Notes
         -----
         If the processor_coro is not specified, the file will be written only.
@@ -296,7 +325,6 @@ class FileForwarderClient(object):
         self.datadir = datadir
         self.processor_coro = processor_coro
         self.force_reread_all = force_reread_all
-        self.sub_dir = sub_dir
         
     def print_settings(self, writer):
         w = lambda s : sys.stdout.write(s+"\n")
@@ -382,7 +410,7 @@ class FileForwarderClient(object):
             self.zmq[name][i] = s
         except IndexError:
             self.zmq[name].append(s)
-        logger.info('Connected socket #{} for {} ({}).'.format(i, name, protocol))
+        logger.info(f'Connected to {server}:{ports[protocol]} for {name} ({protocol}).')
         
     def close_socket(self, name, i):
         s = self.zmq[name][i]
@@ -405,13 +433,15 @@ class FileForwarderClient(object):
         self.close_socket('REQ', i)
         self.connect_socket('REQ', 'REQ', i)
 
-    def write_file(self, filename, contents):
+    def write_file(self, filename, file_type, glider, contents):
         ''' Write a file
 
         PARAMETERS
         ----------
         filename : string
             name of the file to write
+        file_type : string b'DATAFILE' or b'LOGFILE'
+            type of file (determines what directory the file should be written to).
         contents : binary string
             contents to be written (without formatting)
 
@@ -422,8 +452,12 @@ class FileForwarderClient(object):
         written.
         '''
         logger.info("Writing file {}".format(filename))
-        glidername, *_ = filename.split('-')
-        directory = os.path.join(self.datadir, glidername, self.sub_dir)
+        if file_type==TYPE_DATAFILE:
+            sub_dir = 'from-glider'
+        else:
+            sub_dir = 'logs'
+        directory = os.path.join(self.datadir, glider, sub_dir)
+        logger.debug(f"{self.datadir}, {glider}")
         if not os.path.exists(directory):
             os.makedirs(directory)
         path = os.path.join(directory, filename)
@@ -445,16 +479,17 @@ class FileForwarderClient(object):
         '''
         connection = self.zmq['FILE'][i]
         try:
-            [address, filename, contents] = await connection.recv_multipart()
+            [address, filename, file_type, glider, contents] = await connection.recv_multipart()
         except zmq.ZMQError as e:
             sys.stderr("Error reading zmq message (error=%d)\n"%(e.errno))
-            contents = b""
             filename = b""
-
+        else:
+            logger.debug(f"Received {address} {filename}")
         filename = filename.decode('utf-8').lower()
+        glider = glider.decode('utf-8').lower()
         if filename:
             self.receptions[i].append(filename)
-            self.write_file(filename, contents)
+            self.write_file(filename, file_type, glider, contents)
 
     async def listen_info(self, i):
         ''' Coroutine to listen for incoming files
@@ -565,8 +600,11 @@ class FileForwarderClient(object):
                 self.reconnect_req_socket(i)
                 continue
             self.receptions[i].append(f) # successfully read file f
-            content = response[1]
-            self.write_file(f, content)
+            filename = response[1].decode('utf-8')
+            file_type = response[2]
+            glider = response[3].decode('utf-8')
+            content = response[4]
+            self.write_file(f, file_type, glider, content)
 
     async def main(self):
         '''Coroutine main
