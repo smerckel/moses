@@ -10,7 +10,7 @@ import zmq.asyncio
 
 from moses import loggers
 logger=loggers.get_logger(__name__)
-logger.setLevel(loggers.logging.INFO) # DISABLES debug PRINTING
+#logger.setLevel(loggers.logging.INFO) # DISABLES debug PRINTING
 
 
 Connection = namedtuple('Connection', 'server ports'.split())
@@ -103,6 +103,8 @@ class FileTransportServer(object):
                 i = fns.index(filename_requested)
             except ValueError:
                 mesg = [b'NOFILE']
+                logger.debug(f"No file found. Looked for {filename_requested}")
+                logger.debug(self.sent_files)
             else:
                 mesg = [b'FILE']
                 fullpath = os.path.join(*self.sent_files[i])
@@ -118,8 +120,8 @@ class FileTransportServer(object):
     def get_path_info(self, path):
         ''' Returns glidername and filetype based on path structure.'''
 
-        glider = path.split(os.sep)[-2].lower()
-        sub_directory = path.split(os.sep)[-1].lower()
+        glider = path.split(os.sep)[-2]
+        sub_directory = path.split(os.sep)[-1]
         if sub_directory == 'logs':
             file_type = TYPE_LOGFILE
         elif sub_directory == 'from-glider':
@@ -485,8 +487,8 @@ class FileForwarderClient(object):
             filename = b""
         else:
             logger.debug(f"Received {address} {filename}")
-        filename = filename.decode('utf-8').lower()
-        glider = glider.decode('utf-8').lower()
+        filename = filename.decode('utf-8')
+        glider = glider.decode('utf-8')
         if filename:
             self.receptions[i].append(filename)
             self.write_file(filename, file_type, glider, contents)
@@ -564,12 +566,12 @@ class FileForwarderClient(object):
                 status[i] = 1 #valid response.
                 logger.info("Remote list of files already sent by server %d:"%(i))
                 for _r in r:
-                    logger.info("\t{}".format(_r.decode('utf-8').lower()))
+                    logger.info("\t{}".format(_r.decode('utf-8')))
                 if not self.force_reread_all:
                     # assume that what the server has sent, we already have
                     # and fill self.receptions accordingly.
                     r.pop(0) # remove the "command"
-                    self.receptions[i] = [_r.decode('utf-8').lower() for _r in r]
+                    self.receptions[i] = [_r.decode('utf-8') for _r in r]
                     
         logger.info("Initialised.")
         
@@ -591,7 +593,7 @@ class FileForwarderClient(object):
             logger.info('Make request LIST timed out for connection #{}'.format(i))
             self.reconnect_req_socket(i)
             return
-        available_files = set([_r.decode('utf-8').lower() for _r in response[1:]])
+        available_files = set([_r.decode('utf-8') for _r in response[1:]])
         received_files = set(self.receptions[i])
         for f in available_files.difference(received_files):
             response = await self.make_request(i, 'FILE', f)
