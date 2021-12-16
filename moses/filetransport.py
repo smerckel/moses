@@ -10,7 +10,7 @@ import zmq.asyncio
 
 from moses import loggers
 logger=loggers.get_logger(__name__)
-logger.setLevel(loggers.logging.DEBUG) # DISABLES debug PRINTING
+logger.setLevel(loggers.logging.DEBUG) # if INFO: DISABLES debug PRINTING
 
 
 Connection = namedtuple('Connection', 'server ports'.split())
@@ -106,6 +106,8 @@ class FileTransportServer(object):
                 i = fns.index(filename_requested)
             except ValueError:
                 mesg = [b'NOFILE']
+                logger.debug(f"No file found. Looked for {filename_requested}")
+                logger.debug(self.sent_files)
             else:
                 mesg = [b'FILE']
                 fullpath = os.path.join(*self.sent_files[i])

@@ -10,7 +10,7 @@ import glob
 
 if 1:
     # test the server on simulator
-    sys.argv=['main', '--interval=30', '/home/lucas/working/virtualenv/moses/gliders/sim']
+    sys.argv=['main', '--interval=30', '/home/gliderman/gliders/sim']
     __main__.script_moses_dbd_server()
 
 
