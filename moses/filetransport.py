@@ -10,7 +10,7 @@ import zmq.asyncio
 
 from moses import loggers
 logger=loggers.get_logger(__name__)
-logger.setLevel(loggers.logging.DEBUG) # if INFO: DISABLES debug PRINTING
+logger.setLevel(loggers.logging.INFO) # if INFO: DISABLES debug PRINTING
 
 
 Connection = namedtuple('Connection', 'server ports'.split())
@@ -609,7 +609,7 @@ class FileForwarderClient(object):
                 logger.info(f"Requested file {f} was not returned by remote server.")
             elif response[0] == b'FILE':
                 self.receptions[i].append(f) # successfully read file f
-                logger.debug(f"response: {response}")
+                #logger.debug(f"response: {response}")
                 filename = response[1].decode('utf-8')
                 file_type = response[2]
                 glider = response[3].decode('utf-8')
