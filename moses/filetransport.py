@@ -10,7 +10,7 @@ import zmq.asyncio
 
 from moses import loggers
 logger=loggers.get_logger(__name__)
-logger.setLevel(loggers.logging.INFO) # DISABLES debug PRINTING
+logger.setLevel(loggers.logging.DEBUG) # DISABLES debug PRINTING
 
 
 Connection = namedtuple('Connection', 'server ports'.split())
@@ -49,6 +49,7 @@ class FileTransportServer(object):
         self.responder = self.context.socket(zmq.REP)
         self.responder.bind("tcp://*:%d"%(resp_port))
         self.sent_files = []
+        self.stats = dict(counter=0)
 
     async def publish(self,path, filename):
         ''' Coroutine to publish a filename
@@ -81,7 +82,9 @@ class FileTransportServer(object):
         n = "{:d}".format(len(self.sent_files))
         mesg = [b"INFO", n.encode('utf-8')]
         await self.publisher.send_multipart(mesg)
-        logger.info("messages transmitted: {}.".format(n))
+        if n>self.stats['counter']:
+            logger.info("messages transmitted: {}.".format(n))
+        self.stats['counter'] = n
         
     async def respond_to_requests(self):
         ''' Coroutine to handle requests
@@ -118,8 +121,8 @@ class FileTransportServer(object):
     def get_path_info(self, path):
         ''' Returns glidername and filetype based on path structure.'''
 
-        glider = path.split(os.sep)[-2].lower()
-        sub_directory = path.split(os.sep)[-1].lower()
+        glider = path.split(os.sep)[-2]
+        sub_directory = path.split(os.sep)[-1]
         if sub_directory == 'logs':
             file_type = TYPE_LOGFILE
         elif sub_directory == 'from-glider':
@@ -325,6 +328,7 @@ class FileForwarderClient(object):
         self.datadir = datadir
         self.processor_coro = processor_coro
         self.force_reread_all = force_reread_all
+        self.stats = dict(counter=0)
         
     def print_settings(self, writer):
         w = lambda s : sys.stdout.write(s+"\n")
@@ -485,8 +489,8 @@ class FileForwarderClient(object):
             filename = b""
         else:
             logger.debug(f"Received {address} {filename}")
-        filename = filename.decode('utf-8').lower()
-        glider = glider.decode('utf-8').lower()
+        filename = filename.decode('utf-8')
+        glider = glider.decode('utf-8')
         if filename:
             self.receptions[i].append(filename)
             self.write_file(filename, file_type, glider, contents)
@@ -564,12 +568,12 @@ class FileForwarderClient(object):
                 status[i] = 1 #valid response.
                 logger.info("Remote list of files already sent by server %d:"%(i))
                 for _r in r:
-                    logger.info("\t{}".format(_r.decode('utf-8').lower()))
+                    logger.info("\t{}".format(_r.decode('utf-8')))
                 if not self.force_reread_all:
                     # assume that what the server has sent, we already have
                     # and fill self.receptions accordingly.
                     r.pop(0) # remove the "command"
-                    self.receptions[i] = [_r.decode('utf-8').lower() for _r in r]
+                    self.receptions[i] = [_r.decode('utf-8') for _r in r]
                     
         logger.info("Initialised.")
         
@@ -591,7 +595,7 @@ class FileForwarderClient(object):
             logger.info('Make request LIST timed out for connection #{}'.format(i))
             self.reconnect_req_socket(i)
             return
-        available_files = set([_r.decode('utf-8').lower() for _r in response[1:]])
+        available_files = set([_r.decode('utf-8') for _r in response[1:]])
         received_files = set(self.receptions[i])
         for f in available_files.difference(received_files):
             response = await self.make_request(i, 'FILE', f)
@@ -599,13 +603,19 @@ class FileForwarderClient(object):
                 logger.info('Make request FILE timed out for connection #{}'.format(i))
                 self.reconnect_req_socket(i)
                 continue
-            self.receptions[i].append(f) # successfully read file f
-            filename = response[1].decode('utf-8')
-            file_type = response[2]
-            glider = response[3].decode('utf-8')
-            content = response[4]
-            self.write_file(f, file_type, glider, content)
-
+            elif response[0] == b'NOFILE':
+                logger.info(f"Requested file {f} was not returned by remote server.")
+            elif response[0] == b'FILE':
+                self.receptions[i].append(f) # successfully read file f
+                logger.debug(f"response: {response}")
+                filename = response[1].decode('utf-8')
+                file_type = response[2]
+                glider = response[3].decode('utf-8')
+                content = response[4]
+                self.write_file(f, file_type, glider, content)
+            else:
+                logger.warning(f"Unhandled response {response}. Ignored.")
+                
     async def main(self):
         '''Coroutine main
 
@@ -643,7 +653,9 @@ class FileForwarderClient(object):
                     else:
                         files_received = 0
                     files_sent = t.result()
-                    logger.debug(f"Files received : {files_received}, files sent: {files_sent}.")
+                    if files_received>self.stats['counter']:
+                        logger.debug(f"Files received : {files_received}, files sent: {files_sent}.")
+                    self.stats['counter'] = files_received
                     if files_received != files_sent:
                         # we have a back log of files. Start a new tasks if for this server is non running already.
                         if not i in backlog_tasks:
@@ -656,7 +668,9 @@ class FileForwarderClient(object):
                     removables.append(i)
             for i in removables:
                 backlog_tasks.pop(i)
+            if removables:
                 logger.info("Finished backlog clearance process.")
+                
     def run(self, loop = None):
         loop = loop or asyncio.get_event_loop()
         loop.run_until_complete(self.initialise())
