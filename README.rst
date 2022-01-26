@@ -15,10 +15,18 @@ Still to write.
 
   which *does* install numpy's wheel version.
 
+.. note::
+   To avoid passwords to FTP sites ending up in the git repo, we now
+   have to supply a password upon starting up `moses_dbd_client`. A
+   hashed version is submitted to the Ifremer FTP site.
+
+   The command `moses_hashed_password` displays the hashed version of
+   the given password.
+  
 Authors
 ~~~~~~~
 
-* Lucas Merckelbach (lucas.merckelbach at hzg.de)
+* Lucas Merckelbach (lucas.merckelbach at hereon.de)
 
 
 The software is released under the GPLv3 licence.
