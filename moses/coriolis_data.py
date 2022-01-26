@@ -3,9 +3,11 @@ from collections import namedtuple
 
 FTP_Credentials = namedtuple('FTP_Credentials', 'host user password rootdir'.split())
 
+# if password is None, then it is to be subsitituted by password given on startup
+
 CREDENTIALS = dict(coriolis = FTP_Credentials('eftp.ifremer.fr',
                                               'lm20516',
-                                              '0W285WgN',
+                                              None,
                                               'submit'),
                    debug = FTP_Credentials('ftp.hzg.de',
                                            '',

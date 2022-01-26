@@ -1,4 +1,6 @@
 from ftplib import FTP
+from getpass import getpass
+from hashlib import sha256 
 from itertools import chain
 import os
 import sys
@@ -13,6 +15,10 @@ from . import loggers
 
 logger = loggers.get_logger(__name__)
 
+def hash_password(s):
+    b = s.encode('utf-8')
+    return sha256(b).hexdigest()
+    
 class CoriolisDataFormat(object):
 
     def __init__(self, parameter_list, output_dir):
@@ -253,8 +259,17 @@ class Coriolis_FTP_Transfer(object):
         self.ID = ID
         self.working_directory = working_directory
         self.skip_ftp_transfer = skip_ftp_transfer
-
+        self.ask_for_password_if_needed()
         
+    def ask_for_password_if_needed(self):
+        if self.server_info.password is None:
+            p = f"Password for {self.server_info.host}:"
+            p_hashed = hash_password(getpass(p))
+            self.server_info = coriolis_data.FTP_Credentials(self.server_info.host,
+                                                             self.server_info.user,
+                                                             p_hashed,
+                                                             self.server_info.rootdir)
+            
     def get_configuration_repr(self):
         ''' Return a string specifying the configuration of this class 
 
