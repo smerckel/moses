@@ -225,6 +225,7 @@ tools by Coriolis.
             
 def script_hash_password():
     transfer = corioliswriter.Coriolis_FTP_Transfer('coriolis', '2091123', 'tmp')
+    n = corioliswriter.PASSWORDLENGTH
     print("Hashed password:")
-    print(transfer.server_info.password)
+    print(transfer.server_info.password[:n])
     

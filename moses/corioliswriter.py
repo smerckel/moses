@@ -15,9 +15,10 @@ from . import loggers
 
 logger = loggers.get_logger(__name__)
 
+PASSWORDLENGTH = 17
 def hash_password(s):
     b = s.encode('utf-8')
-    return sha256(b).hexdigest()
+    return sha256(b).hexdigest()[:PASSWORDLENGTH]
     
 class CoriolisDataFormat(object):
 
