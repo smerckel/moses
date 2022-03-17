@@ -9,6 +9,7 @@ from . import corioliswriter
 from . import loggers
 
 logger = loggers.get_logger(__name__)
+logger.setLevel(loggers.logging.DEBUG) # if INFO: DISABLES debug PRINTING
 
 def gen_error(errorno, errormsg):
     sys.stderr.write("\n")
@@ -112,6 +113,9 @@ Optional the dbd data can be processed.
     logger.debug(f"writers: {writers}")
     client = filetransport.FileForwarderClient(datadir=dbd_directory, processor_coro = processor_coro,
                                                force_reread_all=force_reread)
+    if server is None:
+        sys.stderr.write("Using localhost as server. Override using the -s parameter.")
+        server=["localhost"]
     for s in server:
         if ":" in s:
             try:
