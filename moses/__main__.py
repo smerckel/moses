@@ -112,6 +112,9 @@ Optional the dbd data can be processed.
     logger.debug(f"writers: {writers}")
     client = filetransport.FileForwarderClient(datadir=dbd_directory, processor_coro = processor_coro,
                                                force_reread_all=force_reread)
+    if server is None:
+        sys.stderr.write("Using localhost as server. Override using the -s parameter.")
+        server=["localhost"]
     for s in server:
         if ":" in s:
             try:
