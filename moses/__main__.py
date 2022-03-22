@@ -9,6 +9,7 @@ from . import corioliswriter
 from . import loggers
 
 logger = loggers.get_logger(__name__)
+logger.setLevel(loggers.logging.DEBUG) # if INFO: DISABLES debug PRINTING
 
 def gen_error(errorno, errormsg):
     sys.stderr.write("\n")

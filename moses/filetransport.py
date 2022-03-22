@@ -9,8 +9,8 @@ import zmq
 import zmq.asyncio
 
 from moses import loggers
-logger=loggers.get_logger(__name__)
-logger.setLevel(loggers.logging.INFO) # if INFO: DISABLES debug PRINTING
+logger=loggers.get_logger(__name__, loggers.logging.INFO)
+
 
 
 Connection = namedtuple('Connection', 'server ports'.split())
@@ -79,9 +79,10 @@ class FileTransportServer(object):
 
     async def publish_info(self):
         ''' Coroutine to publish the number of files that have been transmitted '''
-        n = "{:d}".format(len(self.sent_files))
-        mesg = [b"INFO", n.encode('utf-8')]
+        sent_files = "{:d}".format(len(self.sent_files))
+        mesg = [b"INFO", sent_files.encode('utf-8')]
         await self.publisher.send_multipart(mesg)
+        n = int(sent_files)
         if n>self.stats['counter']:
             logger.info("messages transmitted: {}.".format(n))
         self.stats['counter'] = n
@@ -266,13 +267,15 @@ class FileForwarder(object):
         ''' Coroutine to publish the number of files transmitted'''
         while True:
             await self.server.publish_info()
+            logger.debug("Published info")
             await asyncio.sleep(self.info_interval)
 
     async def task_respond_to_requests(self):
         ''' Coroutine to handle requests.'''
         while True:
             await self.server.respond_to_requests()
-        
+            logger.debug("Responded to request.")
+            
     async def main(self):
         ''' Main coroutine running all tasks concurrently. '''
         tasks = [asyncio.ensure_future(self.task_publish_files_sent()),
@@ -331,7 +334,8 @@ class FileForwarderClient(object):
         self.processor_coro = processor_coro
         self.force_reread_all = force_reread_all
         self.stats = dict(counter=0)
-        
+        logger.debug(f"Force reread : {force_reread_all}")
+
     def print_settings(self, writer):
         w = lambda s : sys.stdout.write(s+"\n")
         c = self.connections
@@ -510,6 +514,7 @@ class FileForwarderClient(object):
         '''
         server = self.connections[i]
         connection = self.zmq['INFO'][i]
+        logger.debug(f"Listen_info: {server}:{i} started.")
         try:
             [address, ns] = await connection.recv_multipart()
         except zmq.ZMQError as e:
@@ -517,6 +522,7 @@ class FileForwarderClient(object):
             n = None
         else:
             n = int(ns.decode('utf-8'))
+            logger.debug(f"Received info-packet. Number of files transmitted: {n}")
         return n
     
     async def make_request(self, i, request, *p):
@@ -638,13 +644,14 @@ class FileForwarderClient(object):
                      INFO=[asyncio.ensure_future(self.listen_info(i)) for i in range(n)],
                      REQ=[])
         backlog_tasks = dict()
-        
         while True:
             await asyncio.sleep(0.5)
             # for each task that received a file (and is finished), spawn it again.
             for i, t in enumerate(tasks['FILE']):
                 if t.done():
                     tasks['FILE'][i] = asyncio.ensure_future(self.listen(i))
+                    logger.debug(f"Spawning new task to receive file (index {i})")
+                    
             # for each task that processed in file number count and is finished, spawn it again.
             # also span to remove the back log, if necessary.
             for i, t in enumerate(tasks['INFO']):
@@ -655,6 +662,9 @@ class FileForwarderClient(object):
                     else:
                         files_received = 0
                     files_sent = t.result()
+                    
+                    logger.debug(f"Files recvd/sent/cntr: {files_received}/{files_sent}/{self.stats['counter']}")
+
                     if files_received>self.stats['counter']:
                         logger.debug(f"Files received : {files_received}, files sent: {files_sent}.")
                     self.stats['counter'] = files_received
