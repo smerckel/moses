@@ -18,6 +18,22 @@ Connection = namedtuple('Connection', 'server ports'.split())
 TYPE_DATAFILE = b'DATA'
 TYPE_LOGFILE = b'LOG'
 
+# import functools
+
+# def aysnc_debug(func):
+#     # a decorator function to capture any errors in async functions.
+#     @functools.wraps(func)
+#     async def inner(*p, **kwds):
+#         try:
+#             await func(*p, **kwds)
+#         except Exception as e:
+#             logger.error("Error occurred in async method!")
+#             print(e.args)
+#             print(e.__class__.__name__)
+#             #import traceback
+#             #traceback.print_exception(e)
+#     return inner
+
 class FileTransportServer(object):
     ''' File transport server
 
@@ -77,6 +93,7 @@ class FileTransportServer(object):
         logger.info("published {}/{}.".format(path, filename))
         logger.info(f"Number of total published files: {len(self.sent_files)}.")
 
+
     async def publish_info(self):
         ''' Coroutine to publish the number of files that have been transmitted '''
         sent_files = "{:d}".format(len(self.sent_files))
@@ -87,6 +104,7 @@ class FileTransportServer(object):
             logger.info("messages transmitted: {}.".format(n))
         self.stats['counter'] = n
         
+
     async def respond_to_requests(self):
         ''' Coroutine to handle requests
 
@@ -262,7 +280,7 @@ class FileForwarder(object):
         w('Listening for client requests at port %d'%(req_port))
         w('--')
         w('')
-        
+
     async def task_publish_files_sent(self):
         ''' Coroutine to publish the number of files transmitted'''
         while True:
@@ -275,7 +293,7 @@ class FileForwarder(object):
         while True:
             await self.server.respond_to_requests()
             logger.debug("Responded to request.")
-            
+
     async def main(self):
         ''' Main coroutine running all tasks concurrently. '''
         tasks = [asyncio.ensure_future(self.task_publish_files_sent()),
@@ -473,10 +491,11 @@ class FileForwarderClient(object):
         path = os.path.join(directory, filename)
         with open(path, 'wb') as fp:
             fp.write(contents)
-        if not self.processor_coro is None:
+        if not self.processor_coro is None and file_type==TYPE_DATAFILE:
             logger.debug(f"Processor_coro called with {directory} and {filename}")
             self.processor_coro.send((directory, filename))
-        
+
+
     async def listen(self, i):
         ''' Coroutine to listen for incoming files
 
@@ -524,7 +543,7 @@ class FileForwarderClient(object):
             n = int(ns.decode('utf-8'))
             logger.debug(f"Received info-packet. Number of files transmitted: {n}")
         return n
-    
+
     async def make_request(self, i, request, *p):
         ''' Coroutine to make a general request to the server '''
         logger.info("Making request ({}) to server {}".format(request, i))
@@ -539,7 +558,8 @@ class FileForwarderClient(object):
             logger.info("Timed out while waiting for response to request {} from server {}.".format(request,i))
             response = None
         return response
-    
+
+
     async def initialise(self):
         ''' Coroutine to initialise the connection
 
@@ -623,7 +643,8 @@ class FileForwarderClient(object):
                 self.write_file(f, file_type, glider, content)
             else:
                 logger.warning(f"Unhandled response {response}. Ignored.")
-                
+
+
     async def main(self):
         '''Coroutine main
 
@@ -671,7 +692,7 @@ class FileForwarderClient(object):
                     if files_received != files_sent:
                         # we have a back log of files. Start a new tasks if for this server is non running already.
                         if not i in backlog_tasks:
-                            logger.info("Starting backlog clearance process...")
+                            logger.info(f"Starting backlog clearance process, because files received ({files_received}) and files sent ({files_sent}) ...")
                             backlog_tasks[i] = asyncio.ensure_future(self.clear_backlog(i))
             # remove any finished backlog_tasks...
             removables=[]

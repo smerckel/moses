@@ -293,11 +293,13 @@ class Coriolis_FTP_Transfer(object):
         return path
 
     def _write_files(self, ftp, lof):
+        logger.debug(f"Going to transfer {len(lof)} file via FTP...")
         for f in lof:
             _, fn = os.path.split(f)
             with open(f, 'rb') as fp:
                 ftp.storlines("STOR {}".format(fn), fp)
-                          
+                logger.debug(f"Transferred {fn}.")
+                
     def transfer_files(self, glider, lof):
         ''' transfer files via ftp
         
@@ -317,7 +319,9 @@ class Coriolis_FTP_Transfer(object):
         _s = self.server_info
         with FTP(_s.host, _s.user, _s.password) as ftp:
             ftp.login(_s.user, _s.password)
+            logger.debug("Logged in")
             ftp.cwd(path)
+            logger.debug(f"Cdir to {path}.")
             self._write_files(ftp, lof)
 
     def get_glidername(self, dbd_filename):

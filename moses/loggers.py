@@ -1,6 +1,6 @@
 import logging
 
-LEVEL = logging.INFO
+LEVEL = logging.DEBUG
 
 def get_logger(name, level=None):
     level = level or LEVEL
